@@ -1,0 +1,67 @@
+---
+title: "오산시 주차장, 주차구획 시각화"
+output: html_document
+---
+
+```{r}
+library(ggmap)
+library(ggplot2)
+library(raster)
+library(rgeos)
+library(rgdal)
+library(maptools)
+library(tidyr)
+library(dplyr)
+library(leaflet)
+```
+
+```{r}
+map=readOGR('TL_SCCO_EMD.shp')
+View(map)
+df_map_info=map@data
+View(df_map_info)
+df_map = spTransform(x = map, CRSobj = CRS('+proj=longlat +datum=WGS84'))
+leaflet(df_map)
+df_map = fortify(df_map)
+View(df_map)
+
+data1<-read.csv('오산시_주차장정보.csv')
+str(data1)
+# 오산시 데이터만 가져오기
+df_map_info[, "id"] = (1:nrow(df_map_info)) - 1
+df_map_info[, "SIDO"] = as.numeric(substr(df_map_info$EMD_CD,
+                                          start = 1, stop = 4))
+str(df_map_info)
+id_sido = df_map_info[df_map_info$SIDO == 4137, c("id",'EMD_KOR_NM','EMD_CD')]
+str(id_sido)
+vec_label <- id_sido$EMD_KOR_NM
+str(vec_label)
+
+
+
+df_map$id<-as.numeric(df_map$id)
+str(df_map)
+new1<- inner_join(df_map,id_sido ,by='id')
+new2<- left_join(new1 ,data1,by='EMD_KOR_NM')
+
+str(new2)
+ggplot() + geom_polygon(data=new2, aes(x=long, y=lat, group=group,fill=new2$주차구획))
+ggplot() + geom_polygon(data=new2, aes(x=long, y=lat, group=group,fill=new2$주차장.개수))
+
+View(new2)
+```
+```{r}
+locate<-read.csv('오산시 위치, 전용면적대비 등록차량수 .csv')
+locate$need<-locate$예측된.등록차량수/locate$전용면적
+str(locate)
+locate$lon<-locate$Longitude
+locate$lat<-locate$Latitude
+str(locate)
+View(locate)
+pal<-colorQuantile('YlOrRd',locate$need,n=8)
+
+
+data_g<-leaflet(locate)%>%addTiles()%>%addCircleMarkers(~lon,~lat,radius =locate$need*3,color= ~pal(need))
+data_g<-addLegend(data_g,'topright',pal=pal,values=~need,title='전용면적 대비 예측등록차량수')
+data_g
+```
